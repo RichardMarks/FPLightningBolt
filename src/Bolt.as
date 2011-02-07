@@ -2,6 +2,7 @@ package
 {
 	import flash.display.BitmapData;
 	import flash.display.BlendMode;
+	import flash.display.Graphics;
 	import flash.display.Sprite;
 	import flash.filters.BitmapFilterQuality;
 	import flash.filters.BlurFilter;
@@ -33,18 +34,23 @@ package
 		
 		// constructor uses numbers not points
 		
+		// line function uses only number variables
+		// looping vars made ints
+		// variable delcarations inlined
+		
+		// bolt graphics reference added to minimize "dot" operator function calls
+		
 		static private var sharedNoiseMap:Vector.<Number>;
 		
 		static private var boltBlur:BlurFilter;
 		static private var boltGlow:GlowFilter;
 		static private var boltColorTransform:ColorTransform;
 		
-		private var myLines:Vector.<Point>;
-		
 		private var myStart:Point;
 		private var myEnd:Point;
 		
 		private var myBolt:Sprite;
+		private var myGraphics:Graphics;
 		
 		
 		public function get Start():Point { return myStart; }
@@ -56,8 +62,15 @@ package
 		static private var longestLine:Number;
 		private var linePointsX:Vector.<Number>;
 		private var linePointsY:Vector.<Number>;
-		private var lineDelta:Point = new Point;
-		private var lineStep:Point = new Point;
+		
+		//private var lineDelta:Point = new Point;
+		//private var lineStep:Point = new Point;
+		
+		private var lineDeltaX:Number;
+		private var lineDeltaY:Number;
+		private var lineStepX:Number;
+		private var lineStepY:Number;
+		
 		private var lineLength:Number;
 		
 		
@@ -69,9 +82,9 @@ package
 				noiseBmp.noise(getTimer(), 81, 183, 7, true);
 				sharedNoiseMap = new Vector.<Number>(FP.width);
 				
-				for (var i:Number = 0; i < sharedNoiseMap.length; i++)
+				for (var i:int = 0; i < sharedNoiseMap.length; i++)
 				{
-					sharedNoiseMap[i] = (noiseBmp.getPixel(i, 0) >> 16) * 0.04;//((81 + (Math.random() * 99)) >> 16) * 0.4;
+					sharedNoiseMap[i] = (noiseBmp.getPixel(i, 0) >> 16) * 0.02;//((81 + (Math.random() * 99)) >> 16) * 0.4;
 				}
 				noiseBmp.dispose();
 				
@@ -83,36 +96,48 @@ package
 			}
 			
 			myBolt = new Sprite;
+			myGraphics = myBolt.graphics;
 			myBolt.filters = [boltBlur, boltGlow];
 			
 			linePointsX = new Vector.<Number>(longestLine);
 			linePointsY = new Vector.<Number>(longestLine);
-			lineDelta = new Point;
-			lineStep = new Point;
-			
 			myStart = new Point(fromX, fromY);
 			myEnd = new Point(toX, toY);
 			
+			
 			MakeLine();
+			
 		}
+		
+		private var counter:Number = 0;
+		private var rate:Number = 2;
 		
 		override public function update():void 
 		{
+			if (++counter >= rate)
+			{
+				counter = 0;
+			}
+			else
+			{
+				return;
+			}
+			
 			MakeLine();
 			
-			myBolt.graphics.clear();
-			myBolt.graphics.moveTo(myStart.x, myStart.y);
+			myGraphics.clear();
+			myGraphics.moveTo(myStart.x, myStart.y);
+			myGraphics.lineStyle(2, 0xffffff, 1);
 			
-			myBolt.graphics.lineStyle(2, 0xffffff, 1);
 			
-			var r:Number;
-			for (var i:Number = 1; i < lineLength; i++)
+			var r:int;
+			for (var i:int = 1; i < lineLength; i++)
 			{
 				r = int(Math.random() * FP.width);
 				linePointsX[i] += sharedNoiseMap[r];
 				linePointsY[i] += sharedNoiseMap[r];
 				
-				myBolt.graphics.lineTo(linePointsX[i], linePointsY[i]);
+				myGraphics.lineTo(linePointsX[i], linePointsY[i]);
 			}
 			
 			super.update();
@@ -121,45 +146,44 @@ package
 		override public function render():void 
 		{
 			FP.buffer.draw(myBolt, null, boltColorTransform, BlendMode.ADD);
+			//FP.log("bolt dim: ", myBolt.width, myBolt.height);
 			
 			super.render();
 		}
 		
 		private function MakeLine():void
 		{
+			var x1:Number = myStart.x, 
+				y1:Number = myStart.y,
+				x2:Number = myEnd.x,
+				y2:Number = myEnd.y,
+				partial:Number,
+				current:int = 0;
 			
-			var x1:Number = myStart.x;
-			var y1:Number = myStart.y;
-			var x2:Number = myEnd.x;
-			var y2:Number = myEnd.y;
-
-			var partial:Number;
-			var current:Number = 0;
+			lineDeltaX = x2 - x1;
+			lineDeltaY = y2 - y1;
 			
-			lineDelta.x = x2 - x1;
-			lineDelta.y = y2 - y1;
+			if (lineDeltaX < 0) { lineDeltaX = -lineDeltaX; lineStepX = -1; } else { lineStepX = 1; }
+			if (lineDeltaY < 0) { lineDeltaY = -lineDeltaY; lineStepY = -1; } else { lineStepY = 1; }
 			
-			if (lineDelta.x < 0) { lineDelta.x = -lineDelta.x; lineStep.x = -1; } else { lineStep.x = 1; }
-			if (lineDelta.y < 0) { lineDelta.y = -lineDelta.y; lineStep.y = -1; } else { lineStep.y = 1; }
-			
-			lineDelta.x <<= 1;
-			lineDelta.y <<= 1;
+			lineDeltaX <<= 1;
+			lineDeltaY <<= 1;
 			
 			linePointsX[current] = x1;
 			linePointsY[current] = y1;
 			
-			if (lineDelta.x > lineDelta.y)
+			if (lineDeltaX > lineDeltaY)
 			{
-				partial = lineDelta.y - (lineDelta.x >> 1);
+				partial = lineDeltaY - (lineDeltaX >> 1);
 				while (x1 != x2)
 				{
 					if (partial >= 0)
 					{
-						y1 += lineStep.y;
-						partial -= lineDelta.x;
+						y1 += lineStepY;
+						partial -= lineDeltaX;
 					}
-					x1 += lineStep.x;
-					partial += lineDelta.y;
+					x1 += lineStepX;
+					partial += lineDeltaY;
 					current++;
 					linePointsX[current] = x1;
 					linePointsY[current] = y1;
@@ -167,16 +191,16 @@ package
 			}
 			else
 			{
-				partial = lineDelta.x - (lineDelta.y >> 1);
+				partial = lineDeltaX - (lineDeltaY >> 1);
 				while (y1 != y2)
 				{
 					if (partial >= 0)
 					{
-						x1 += lineStep.x;
-						partial -= lineDelta.y;
+						x1 += lineStepX;
+						partial -= lineDeltaY;
 					}
-					y1 += lineStep.y;
-					partial += lineDelta.x;
+					y1 += lineStepY;
+					partial += lineDeltaX;
 					current++;
 					linePointsX[current] = x1;
 					linePointsY[current] = y1;
@@ -184,6 +208,7 @@ package
 			}
 			
 			lineLength = current;
+			
 		}
 	}
 

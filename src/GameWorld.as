@@ -17,7 +17,12 @@ package
 		
 		override public function begin():void 
 		{
-		
+			for (var i:Number = 0; i < FP.width; i += 64)
+			{
+				//add(new Bolt(i, FP.height, i, 0));
+			}
+			//add(new Bolt(32, 60, 256, 256));
+			
 			bolt = new Bolt(64, 64, 256, 256);
 			
 			add(bolt);
